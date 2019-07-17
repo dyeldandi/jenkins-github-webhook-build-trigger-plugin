@@ -122,6 +122,8 @@ magically by convention over configuration.
 | `$GWBT_REPO_HTML_URL` |  GitHub repository browser url. |   `https://github.com/{repoOwner}/{repoName}` <br> e.g. `https://github.com/codeclou/jenkins-github-webhook-build-trigger-plugin` |
 | `$GWBT_REPO_FULL_NAME` | GitHub repository full name | `{repoOwner}/{repoName}` <br> e.g. `codeclou/jenkins-github-webhook-build-trigger-plugin` |
 | `$GWBT_REPO_NAME` | GitHub repository full name |  `{repoName}` <br> e.g. `jenkins-github-webhook-build-trigger-plugin` |
+| `$GWBT_TYPE` | GitHub hook type |  `push` e.g. `push`, `create`, etc |
+| `$GWBT_FLAGS` | GitHub json flags |  `foobar` |
 
 
 &nbsp;
