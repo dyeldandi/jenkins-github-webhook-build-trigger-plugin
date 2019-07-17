@@ -57,6 +57,7 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
         String requestBody = writer.toString();
         Gson gson = new Gson();
         GithubWebhookPayload githubWebhookPayload = gson.fromJson(requestBody, GithubWebhookPayload.class);
+	githubWebhookPayload.setType(request.getHeader("x-github-event");
         StringBuilder info = new StringBuilder();
         if (githubWebhookPayload == null) {
             return HttpResponses.error(500, this.getTextEnvelopedInBanner("   ERROR: payload json is empty at least requestBody is empty!"));
@@ -98,56 +99,71 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
             //
             EnvironmentContributionAction environmentContributionAction = new EnvironmentContributionAction(githubWebhookPayload);
 
-            //
-            // TRIGGER JOBS
-            //
-            String jobNamePrefix = this.normalizeRepoFullName(githubWebhookPayload.getRepository().getFull_name());
-            StringBuilder jobsTriggered = new StringBuilder();
-            ArrayList<String> jobsAlreadyTriggered = new ArrayList<>();
-            StringBuilder causeNote = new StringBuilder();
-            causeNote.append("github-webhook-build-trigger-plugin:\n");
-            causeNote.append(githubWebhookPayload.getAfter()).append("\n");
-            causeNote.append(githubWebhookPayload.getRef()).append("\n");
-            causeNote.append(githubWebhookPayload.getRepository().getClone_url());
-            Cause cause = new Cause.RemoteCause("github.com", causeNote.toString());
-            Collection<Job> jobs = Jenkins.getInstance().getAllItems(Job.class);
-            if (jobs.isEmpty()) {
-                jobsTriggered.append("   WARNING NO JOBS FOUND!\n");
-                jobsTriggered.append("      You either have no jobs or if you are using matrix-based security,\n");
-                jobsTriggered.append("      please give the following rights to 'Anonymous':\n");
-                jobsTriggered.append("      'Job' -> build, discover, read.\n");
-            }
-            for (Job job: jobs) {
-                if (job.getName().startsWith(jobNamePrefix) && ! jobsAlreadyTriggered.contains(job.getName())) {
-                    jobsAlreadyTriggered.add(job.getName());
-                    if (job instanceof WorkflowJob) {
-                        WorkflowJob wjob = (WorkflowJob) job;
-                        if (wjob.isBuildable()) {
-                            jobsTriggered.append("   WORKFLOWJOB> ").append(job.getName()).append(" TRIGGERED\n");
-                            wjob.scheduleBuild2(0, environmentContributionAction.transform(), new CauseAction(cause));
-                        } else {
-                            jobsTriggered.append("   WORKFLOWJOB> ").append(job.getName()).append(" NOT BUILDABLE. SKIPPING.\n");
-                        }
+            if (githubWebhookPayload.getType() == "push" && githubWebhookPayload.hasJFlags()) {
+
+                //
+                // TRIGGER JOBS
+                //
+                String jobNamePrefix = this.normalizeRepoFullName(githubWebhookPayload.getRepository().getFull_name());
+                StringBuilder jobsTriggered = new StringBuilder();
+                ArrayList<String> jobsAlreadyTriggered = new ArrayList<>();
+                StringBuilder causeNote = new StringBuilder();
+                causeNote.append("github-webhook-build-trigger-plugin:\n");
+                causeNote.append(githubWebhookPayload.getType()).append("\n");
+                causeNote.append("Flags: ");
+                for (GithubWebhookPayloadJenkinsFlag flag : githubWebhookPayload.getJFlags()) {
+                    if (flag.hasValue()) {
+                        causeNote.append("[").append(flag.getName()).append("=").append(flag.getValue()).append("] ");
                     } else {
-                        AbstractProject projectScheduable = (AbstractProject) job;
-                        if (job.isBuildable()) {
-                            jobsTriggered.append("   CLASSICJOB>  ").append(job.getName()).append(" TRIGGERED\n");
-                            projectScheduable.scheduleBuild(0, cause, environmentContributionAction);
+                        causeNote.append("[").append(flag.getName()).append("] ");
+                    }
+                }
+                causeNote.append("\n");
+                causeNote.append(githubWebhookPayload.getAfter()).append("\n");
+                causeNote.append(githubWebhookPayload.getRef()).append("\n");
+                causeNote.append(githubWebhookPayload.getRepository().getClone_url());
+                Cause cause = new Cause.RemoteCause("github.com", causeNote.toString());
+                Collection<Job> jobs = Jenkins.getInstance().getAllItems(Job.class);
+                if (jobs.isEmpty()) {
+                    jobsTriggered.append("   WARNING NO JOBS FOUND!\n");
+                    jobsTriggered.append("      You either have no jobs or if you are using matrix-based security,\n");
+                    jobsTriggered.append("      please give the following rights to 'Anonymous':\n");
+                    jobsTriggered.append("      'Job' -> build, discover, read.\n");
+                }
+                for (Job job: jobs) {
+                    if (job.getName().startsWith(jobNamePrefix) && ! jobsAlreadyTriggered.contains(job.getName())) {
+                        jobsAlreadyTriggered.add(job.getName());
+                        if (job instanceof WorkflowJob) {
+                            WorkflowJob wjob = (WorkflowJob) job;
+                            if (wjob.isBuildable()) {
+                                jobsTriggered.append("   WORKFLOWJOB> ").append(job.getName()).append(" TRIGGERED\n");
+                                wjob.scheduleBuild2(0, environmentContributionAction.transform(), new CauseAction(cause));
+                            } else {
+                                jobsTriggered.append("   WORKFLOWJOB> ").append(job.getName()).append(" NOT BUILDABLE. SKIPPING.\n");
+                            }
                         } else {
-                            jobsTriggered.append("   CLASSICJOB>  ").append(job.getName()).append(" NOT BUILDABLE. SKIPPING.\n");
+                            AbstractProject projectScheduable = (AbstractProject) job;
+                            if (job.isBuildable()) {
+                                jobsTriggered.append("   CLASSICJOB>  ").append(job.getName()).append(" TRIGGERED\n");
+                                projectScheduable.scheduleBuild(0, cause, environmentContributionAction);
+                            } else {
+                                jobsTriggered.append("   CLASSICJOB>  ").append(job.getName()).append(" NOT BUILDABLE. SKIPPING.\n");
+                            }
                         }
                     }
                 }
+                //
+                // WRITE ADDITONAL INFO
+                //
+                info.append(">> webhook content to env vars").append("\n");
+                info.append(environmentContributionAction.getEnvVarInfo());
+                info.append("\n");
+                info.append(">> jobs triggered with name matching '").append(jobNamePrefix).append("*'").append("\n");
+                info.append(jobsTriggered.toString());
+                return HttpResponses.plainText(this.getTextEnvelopedInBanner(info.toString()));
+            } else {
+                return HttpResponses.plainText(this.getTextEnvelopedInBanner(info.toString()));
             }
-            //
-            // WRITE ADDITONAL INFO
-            //
-            info.append(">> webhook content to env vars").append("\n");
-            info.append(environmentContributionAction.getEnvVarInfo());
-            info.append("\n");
-            info.append(">> jobs triggered with name matching '").append(jobNamePrefix).append("*'").append("\n");
-            info.append(jobsTriggered.toString());
-            return HttpResponses.plainText(this.getTextEnvelopedInBanner(info.toString()));
         } catch (JsonSyntaxException ex) {
             return HttpResponses.error(500, this.getTextEnvelopedInBanner(info.toString() + "   ERROR: github webhook json invalid"));
         }
