@@ -1,6 +1,7 @@
 /*
  * Licensed under MIT License
  * Copyright (c) 2017 Bernhard Grünewaldt
+ * Copyright (c) 2019 Denis Yeldandi
  */
 package io.codeclou.jenkins.githubwebhookbuildtriggerplugin;
 
@@ -57,7 +58,8 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
         String requestBody = writer.toString();
         Gson gson = new Gson();
         GithubWebhookPayload githubWebhookPayload = gson.fromJson(requestBody, GithubWebhookPayload.class);
-	githubWebhookPayload.setType(request.getHeader("x-github-event");
+	githubWebhookPayload.setType(request.getHeader("x-github-event"));
+	githubWebhookPayload.findFlags();
         StringBuilder info = new StringBuilder();
         if (githubWebhookPayload == null) {
             return HttpResponses.error(500, this.getTextEnvelopedInBanner("   ERROR: payload json is empty at least requestBody is empty!"));
@@ -99,7 +101,18 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
             //
             EnvironmentContributionAction environmentContributionAction = new EnvironmentContributionAction(githubWebhookPayload);
 
-            if (githubWebhookPayload.getType() == "push" && githubWebhookPayload.hasJFlags()) {
+            info.append("Type: ").append(githubWebhookPayload.getType()).append("\n");
+            info.append("Flags: ");
+            for (GithubWebhookPayload.GithubWebhookPayloadJenkinsFlag flag : githubWebhookPayload.getJFlags()) {
+                if (flag.hasValue()) {
+                    info.append("[").append(flag.getName()).append("=").append(flag.getValue()).append("] ");
+                } else {
+                    info.append("[").append(flag.getName()).append("] ");
+                }
+            }
+            info.append("\n");
+
+            if (githubWebhookPayload.getType().equals("push") && githubWebhookPayload.hasJFlags()) {
 
                 //
                 // TRIGGER JOBS
@@ -111,7 +124,7 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
                 causeNote.append("github-webhook-build-trigger-plugin:\n");
                 causeNote.append(githubWebhookPayload.getType()).append("\n");
                 causeNote.append("Flags: ");
-                for (GithubWebhookPayloadJenkinsFlag flag : githubWebhookPayload.getJFlags()) {
+                for (GithubWebhookPayload.GithubWebhookPayloadJenkinsFlag flag : githubWebhookPayload.getJFlags()) {
                     if (flag.hasValue()) {
                         causeNote.append("[").append(flag.getName()).append("=").append(flag.getValue()).append("] ");
                     } else {

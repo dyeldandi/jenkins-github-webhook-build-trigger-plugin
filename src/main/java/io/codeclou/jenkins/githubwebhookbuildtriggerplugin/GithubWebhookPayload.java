@@ -1,9 +1,12 @@
 /*
  * Licensed under MIT License
  * Copyright (c) 2017 Bernhard Grünewaldt
+ * Copyright (c) 2019 Denis Yeldandi
  */
 package io.codeclou.jenkins.githubwebhookbuildtriggerplugin;
-
+import java.util.ArrayList;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 /**
  * GitHub Webhook JSON Pojo with only the parts that are interesting for us.
  * See: https://developer.github.com/webhooks/#payloads
@@ -34,24 +37,26 @@ public class GithubWebhookPayload {
     }
 
     public GithubWebhookPayload() {
-
+	jFlags = new ArrayList<GithubWebhookPayloadJenkinsFlag>();
     }
 
     public void findFlags() {
-        for (GithubWebhookPayloadCommit commit : commits) {
-            flagMatcher = flagPattern.matcher(commit.message);
-            while(flagMatcher.find()) {
-                if (flagMatcher.groupCount() == 2) {
-                    jFlags.append(GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1), flagMatcher.group(2)));
-                } else if (flagMatcher.groupCount() == 1) {
-                    jFlags.append(GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1)));
+	if (commits != null) {
+            for (GithubWebhookPayloadCommit commit : commits) {
+                flagMatcher = flagPattern.matcher(commit.message);
+                while(flagMatcher.find()) {
+                    if (flagMatcher.groupCount() == 2) {
+                        jFlags.add(new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1), flagMatcher.group(2)));
+                    } else if (flagMatcher.groupCount() == 1) {
+                        jFlags.add(new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1)));
+                    }
                 }
             }
         }
     }
 
     public ArrayList<GithubWebhookPayloadJenkinsFlag> getJFlags() {
-        return jFlags
+        return jFlags;
     }
 
     public boolean hasJFlags() {
@@ -232,6 +237,7 @@ public class GithubWebhookPayload {
         }
 
         public boolean hasValue() {
-            return ! value.isEmpty();
+            return value != null && ! value.isEmpty();
         }
+    }
 }
