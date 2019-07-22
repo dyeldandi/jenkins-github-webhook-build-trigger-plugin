@@ -21,12 +21,14 @@ public class GithubWebhookPayload {
     private String type;
     private String ref;
     private String ref_type;
-    private String before;
-    private String after;
+    private String before = "";
+    private String after = "";
     private ArrayList<GithubWebhookPayloadCommit> commits;
     private GithubWebhookPayloadCommit head_commit;
     private GithubWebhookPayloadRepository repository;
 
+    private String releaseVer;
+    private boolean releaseTag;
     private ArrayList<GithubWebhookPayloadJenkinsFlag> jFlags;
     private static final Pattern flagPattern;
     private Matcher flagMatcher;
@@ -59,8 +61,25 @@ public class GithubWebhookPayload {
         return jFlags;
     }
 
+    public void findRelease() {
+        if (ref.startsWith("release/")) {
+            releaseTag = true;
+            releaseVer = ref.substring(8);
+	} else {
+            releaseTag = false;
+	}
+    }
+
     public boolean hasJFlags() {
         return jFlags.size() > 0;
+    }
+
+    public boolean isReleaseTag() {
+        return releaseTag;
+    }
+
+    public String getRelease() {
+        return releaseVer;
     }
 
     public String getType() {

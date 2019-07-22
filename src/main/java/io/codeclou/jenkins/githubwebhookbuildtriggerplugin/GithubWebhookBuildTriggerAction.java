@@ -60,6 +60,7 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
         GithubWebhookPayload githubWebhookPayload = gson.fromJson(requestBody, GithubWebhookPayload.class);
 	githubWebhookPayload.setType(request.getHeader("x-github-event"));
 	githubWebhookPayload.findFlags();
+	githubWebhookPayload.findRelease();
         StringBuilder info = new StringBuilder();
         if (githubWebhookPayload == null) {
             return HttpResponses.error(500, this.getTextEnvelopedInBanner("   ERROR: payload json is empty at least requestBody is empty!"));
@@ -112,30 +113,37 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
             }
             info.append("\n");
 
-            if (githubWebhookPayload.getType().equals("push") && githubWebhookPayload.hasJFlags()) {
+            if (
+                (githubWebhookPayload.getType().equals("push") && githubWebhookPayload.hasJFlags()) ||
+                (githubWebhookPayload.getType().equals("create") && githubWebhookPayload.getRef_type().equals("tag"))
+                ) {
 
                 //
                 // TRIGGER JOBS
                 //
-                String jobNamePrefix = this.normalizeRepoFullName(githubWebhookPayload.getRepository().getFull_name());
+                String jobNamePrefix = this.getJobName(githubWebhookPayload);
                 StringBuilder jobsTriggered = new StringBuilder();
                 ArrayList<String> jobsAlreadyTriggered = new ArrayList<>();
                 StringBuilder causeNote = new StringBuilder();
                 causeNote.append("github-webhook-build-trigger-plugin:\n");
                 causeNote.append(githubWebhookPayload.getType()).append("\n");
-                causeNote.append("Flags: ");
-                for (GithubWebhookPayload.GithubWebhookPayloadJenkinsFlag flag : githubWebhookPayload.getJFlags()) {
-                    if (flag.hasValue()) {
-                        causeNote.append("[").append(flag.getName()).append("=").append(flag.getValue()).append("] ");
-                    } else {
-                        causeNote.append("[").append(flag.getName()).append("] ");
+                if (githubWebhookPayload.getType().equals("push")) {
+                    causeNote.append("Flags: ");
+                    for (GithubWebhookPayload.GithubWebhookPayloadJenkinsFlag flag : githubWebhookPayload.getJFlags()) {
+                        if (flag.hasValue()) {
+                            causeNote.append("[").append(flag.getName()).append("=").append(flag.getValue()).append("] ");
+                        } else {
+                            causeNote.append("[").append(flag.getName()).append("] ");
+                        }
                     }
+                    causeNote.append("\n");
                 }
-                causeNote.append("\n");
                 causeNote.append(githubWebhookPayload.getAfter()).append("\n");
                 causeNote.append(githubWebhookPayload.getRef()).append("\n");
                 causeNote.append(githubWebhookPayload.getRepository().getClone_url());
                 Cause cause = new Cause.RemoteCause("github.com", causeNote.toString());
+
+
                 Collection<Job> jobs = Jenkins.getInstance().getAllItems(Job.class);
                 if (jobs.isEmpty()) {
                     jobsTriggered.append("   WARNING NO JOBS FOUND!\n");
@@ -187,6 +195,27 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
      */
     private String normalizeRepoFullName(String reponame) {
         return reponame.replace("/", "---");
+    }
+
+    private String normalizeTagName(String reponame, String ref) {
+        if (ref.contains("/")) {
+            String[] refsplit = ref.split("/", 2);
+            return reponame.replace("/", "---") + "---" + refsplit[0];
+        } else {
+            return reponame.replace("/", "---") + "---" + ref;
+        }
+    }
+
+    private String getJobName(GithubWebhookPayload payload) {
+        if (payload.getType().equals("push")) {
+            return this.normalizeRepoFullName(payload.getRepository().getFull_name());
+        } else if (payload.getType().equals("create") && payload.getRef_type().equals("tag") && payload.isReleaseTag()) {
+            return "RELEASE---" + this.normalizeRepoFullName(payload.getRepository().getFull_name());
+        } else if (payload.getType().equals("create") && payload.getRef_type().equals("tag")) {
+            return "TAG---" + this.normalizeTagName(payload.getRepository().getFull_name(), payload.getRef());
+        } else {
+            return "EVERYTHING---" + this.normalizeRepoFullName(payload.getRepository().getFull_name());
+        }
     }
 
     private String getTextEnvelopedInBanner(String text) {

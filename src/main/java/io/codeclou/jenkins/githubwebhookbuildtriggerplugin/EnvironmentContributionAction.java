@@ -49,6 +49,11 @@ public class EnvironmentContributionAction implements EnvironmentContributingAct
         this.environmentVariables.put("GWBT_REPO_HTML_URL", payload.getRepository().getHtml_url());
         this.environmentVariables.put("GWBT_REPO_FULL_NAME", payload.getRepository().getFull_name());
         this.environmentVariables.put("GWBT_REPO_NAME", payload.getRepository().getName());
+
+	if (payload.isReleaseTag()) {
+		info.append("   release\n      -> $GWBT_RELEASE         : ").append(payload.getRelease()).append("\n\n");
+		this.environmentVariables.put("GWBT_RELEASE", payload.getRelease());
+	}
     }
 
     private String normalizeJFlagsOrEmptyString(ArrayList<GithubWebhookPayload.GithubWebhookPayloadJenkinsFlag> jFlags) {
