@@ -7,10 +7,22 @@ package io.codeclou.jenkins.githubwebhookbuildtriggerplugin;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
+import java.lang.reflect.Type;
 /**
  * GitHub Webhook JSON Pojo with only the parts that are interesting for us.
  * See: https://developer.github.com/webhooks/#payloads
  */
+
 public class GithubWebhookPayload {
 
     /*
@@ -26,10 +38,13 @@ public class GithubWebhookPayload {
     private ArrayList<GithubWebhookPayloadCommit> commits;
     private GithubWebhookPayloadCommit head_commit;
     private GithubWebhookPayloadRepository repository;
+    private GithubWebhookPayloadSender sender;
+    private GithubWebhookPayloadPerson pusher;
 
     private String releaseVer;
     private boolean releaseTag;
     private ArrayList<GithubWebhookPayloadJenkinsFlag> jFlags;
+    private ArrayList<GithubWebhookPayloadJenkinsCommitFlags> jcFlags;
     private static final Pattern flagPattern;
     private Matcher flagMatcher;
 
@@ -40,17 +55,33 @@ public class GithubWebhookPayload {
 
     public GithubWebhookPayload() {
 	jFlags = new ArrayList<GithubWebhookPayloadJenkinsFlag>();
+	jcFlags = new ArrayList<GithubWebhookPayloadJenkinsCommitFlags>();
     }
 
     public void findFlags() {
 	if (commits != null) {
+            DateTime timeNow = new DateTime();
             for (GithubWebhookPayloadCommit commit : commits) {
-                flagMatcher = flagPattern.matcher(commit.message);
-                while(flagMatcher.find()) {
-                    if (flagMatcher.groupCount() == 2) {
-                        jFlags.add(new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1), flagMatcher.group(2)));
-                    } else if (flagMatcher.groupCount() == 1) {
-                        jFlags.add(new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1)));
+                if (timeNow.getMillis() - commit.timestamp.getMillis() < 600*1000) {
+                    GithubWebhookPayloadJenkinsCommitFlags jcFlag = new GithubWebhookPayloadJenkinsCommitFlags(commit.getId(), commit.getCommitter());
+                    ArrayList<GithubWebhookPayloadJenkinsFlag> jcFlagArray = jcFlag.getJFlags();
+                    flagMatcher = flagPattern.matcher(commit.message);
+                    while(flagMatcher.find()) {
+                        GithubWebhookPayloadJenkinsFlag newflag = null;
+                        if (flagMatcher.groupCount() == 2) {
+                            newflag = new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1), flagMatcher.group(2));
+                        } else if (flagMatcher.groupCount() == 1) {
+                            newflag = new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1));
+                        }
+                        if (!jFlags.contains(newflag)) {
+                            jFlags.add(newflag);
+                        }
+                        if (!jcFlagArray.contains(newflag)) {
+                            jcFlagArray.add(newflag);
+                        }
+                    }
+                    if (!jcFlagArray.isEmpty()) {
+                        jcFlags.add(jcFlag);
                     }
                 }
             }
@@ -60,6 +91,11 @@ public class GithubWebhookPayload {
     public ArrayList<GithubWebhookPayloadJenkinsFlag> getJFlags() {
         return jFlags;
     }
+
+    public ArrayList<GithubWebhookPayloadJenkinsCommitFlags> getJCFlags() {
+        return jcFlags;
+    }
+
 
     public void findRelease() {
         if (ref.startsWith("release/")) {
@@ -72,6 +108,10 @@ public class GithubWebhookPayload {
 
     public boolean hasJFlags() {
         return jFlags.size() > 0;
+    }
+
+    public boolean hasJCFlags() {
+        return jcFlags.size() > 0;
     }
 
     public boolean isReleaseTag() {
@@ -130,6 +170,22 @@ public class GithubWebhookPayload {
         this.repository = repository;
     }
 
+    public GithubWebhookPayloadSender getSender() {
+        return sender;
+    }
+
+    public void setSender(GithubWebhookPayloadSender sender) {
+        this.sender = sender;
+    }
+
+    public GithubWebhookPayloadPerson getPusher() {
+        return pusher;
+    }
+
+    public void setPusher(GithubWebhookPayloadPerson pusher) {
+        this.pusher = pusher;
+    }
+
     public Long getHook_id() {
         return hook_id;
     }
@@ -181,12 +237,56 @@ public class GithubWebhookPayload {
         }
     }
 
+    public class GithubWebhookPayloadSender {
+        private String login;
+        private int id;
+        private String avatar_url;
+        private String type;
+
+        public GithubWebhookPayloadSender() {
+        }
+
+        public String getLogin() {
+            return login;
+        }
+
+        public void setLogin(String login) {
+            this.login = login;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+	public void setId(int id) {
+            this.id = id;
+        }
+
+        public String getAvatar_url() {
+            return avatar_url;
+        }
+
+        public void setAvatar_url(String avatar_url) {
+            this.avatar_url = avatar_url;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+    }
+
     public class GithubWebhookPayloadCommit {
         private String id;
         private String tree_id;
         private String message;
-        private String timestamp;
+        private DateTime timestamp;
         private String url;
+        private GithubWebhookPayloadPerson author;
+        private GithubWebhookPayloadPerson committer;
 
         public GithubWebhookPayloadCommit() {
 
@@ -216,11 +316,11 @@ public class GithubWebhookPayload {
             this.message = message;
         }
 
-        public String getTimestamp() {
+        public DateTime getTimestamp() {
             return timestamp;
         }
 
-        public void setTimestamp(String timestamp) {
+        public void setTimestamp(DateTime timestamp) {
             this.timestamp = timestamp;
         }
 
@@ -231,15 +331,25 @@ public class GithubWebhookPayload {
         public void setUrl(String url) {
             this.url = url;
         }
+
+        public GithubWebhookPayloadPerson getAuthor() {
+            return author;
+        }
+
+        public GithubWebhookPayloadPerson getCommitter() {
+            return committer;
+        }
     }
 
     public class GithubWebhookPayloadJenkinsFlag {
         private String name;
         private String value;
+	private String ref;
 
         public GithubWebhookPayloadJenkinsFlag(String name) {
             this.name = name;
             this.value = "";
+            this.ref = "";
         }
 
         public GithubWebhookPayloadJenkinsFlag(String name, String value) {
@@ -258,5 +368,105 @@ public class GithubWebhookPayload {
         public boolean hasValue() {
             return value != null && ! value.isEmpty();
         }
+
+	public boolean equals(GithubWebhookPayloadJenkinsFlag other) {
+            if (other == null) return false;
+	    return other.name.equals(this.name) && other.value.equals(this.value);
+	}
+
+	public int hashCode() {
+	    return this.name.hashCode() + this.value.hashCode();
+	}
     }
+
+    public class GithubWebhookPayloadJenkinsCommitFlags {
+        private ArrayList<GithubWebhookPayloadJenkinsFlag> jFlags;
+	private String ref;
+        private GithubWebhookPayloadPerson committer;
+
+        public GithubWebhookPayloadJenkinsCommitFlags(String ref, GithubWebhookPayloadPerson committer, ArrayList<GithubWebhookPayloadJenkinsFlag> jFlags) {
+            this.jFlags = jFlags;
+            this.ref = ref;
+            this.committer = committer;
+        }
+
+        public GithubWebhookPayloadJenkinsCommitFlags(String ref, GithubWebhookPayloadPerson committer) {
+            this.jFlags = new ArrayList<GithubWebhookPayloadJenkinsFlag>();
+            this.ref = ref;
+            this.committer = committer;
+        }
+
+        public String getRef() {
+            return ref;
+        }
+
+        public ArrayList<GithubWebhookPayloadJenkinsFlag> getJFlags() {
+            return jFlags;
+        }
+
+        public GithubWebhookPayloadPerson getCommitter() {
+            return committer;
+        }
+    }
+
+    public class GithubWebhookPayloadPerson {
+        private String name;
+        private String username;
+        private String email;
+
+        public GithubWebhookPayloadPerson(String name, String username, String email) {
+            this.name = name;
+            this.username = username;
+            this.email = email;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+    }
+
+    public static final class DateTimeConverter implements JsonDeserializer<DateTime>, JsonSerializer<DateTime>
+    {
+       //static final org.joda.time.format.DateTimeFormatter DATE_TIME_FORMATTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+    
+       @Override
+       public DateTime deserialize(final JsonElement je, final Type type, final JsonDeserializationContext jdc) throws JsonParseException {
+          if (je.getAsString().length() == 0) {
+              return null;
+          }
+          final DateTimeFormatter fmt = ISODateTimeFormat.dateTimeParser().withOffsetParsed();
+          return fmt.parseDateTime(je.getAsString());
+          //return je.getAsString().length() == 0 ? null : DATE_TIME_FORMATTER.parseDateTime(dateAsString);
+       }
+    
+       @Override
+       public JsonElement serialize(final DateTime src, final Type typeOfSrc, final JsonSerializationContext context) {
+          final DateTimeFormatter fmt = ISODateTimeFormat.dateTime();
+          return new JsonPrimitive(fmt.print(src));
+          //return new JsonPrimitive(src == null ? StringUtils.EMPTY :DATE_TIME_FORMATTER.print(src)); 
+       }
+    }
+    
+
 }

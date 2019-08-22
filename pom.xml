@@ -16,11 +16,11 @@
 
   <name>github-webhook-notifier-plugin</name>
   <description>github-webhook-notifier-plugin</description>
-  <url>https://github.com/codeclou/jenkins-github-webhook-notifier-plugin</url>
+  <url>/</url>
   <licenses>
     <license>
       <name>MIT License</name>
-      <url>https://github.com/codeclou/jenkins-github-webhook-notifier-plugin/blob/master/LICENSE</url>
+      <url>/</url>
     </license>
   </licenses>
   <repositories>
@@ -58,6 +58,13 @@
       <version>2.5</version>
       <optional>true</optional>
     </dependency>
+    <!-- https://mvnrepository.com/artifact/joda-time/joda-time -->
+    <dependency>
+        <groupId>joda-time</groupId>
+        <artifactId>joda-time</artifactId>
+        <version>2.9.4</version>
+    </dependency>
+
   </dependencies>
   <!-- https://wiki.jenkins.io/display/JENKINS/Choosing+Jenkins+version+to+build+against -->
   <properties>
