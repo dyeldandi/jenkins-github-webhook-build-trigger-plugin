@@ -5,6 +5,7 @@
 package io.codeclou.jenkins.githubwebhookbuildtriggerplugin.webhooksecret;
 
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -21,15 +22,18 @@ public class GitHubWebhookUtility {
     };
 
     public static boolean verifySignature(String payload, String signature, String secret) {
+        if (signature == null || !signature.startsWith("sha1=")) {
+            return false;
+        }
         boolean isValid;
         try {
             Mac mac = Mac.getInstance(HMAC_SHA1_ALGORITHM);
             SecretKeySpec signingKey = new SecretKeySpec(secret.getBytes(), HMAC_SHA1_ALGORITHM);
             mac.init(signingKey);
             byte[] rawHmac = mac.doFinal(payload.getBytes());
-            String expected = signature.substring(5);
-            String actual = new String(encode(rawHmac));
-            isValid = expected.equals(actual);
+            byte[] expected = signature.substring(5).getBytes();
+            byte[] actual = new String(encode(rawHmac)).getBytes();
+            isValid = MessageDigest.isEqual(expected, actual);
         } catch (NoSuchAlgorithmException | InvalidKeyException | IllegalStateException ex) {
             throw new RuntimeException(ex.getLocalizedMessage());
         }

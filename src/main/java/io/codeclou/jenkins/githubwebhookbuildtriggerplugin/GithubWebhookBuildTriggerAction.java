@@ -27,12 +27,15 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.logging.Logger;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import org.joda.time.DateTime;
 
 @Extension
 public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
+
+    private static final Logger LOGGER = Logger.getLogger(GithubWebhookBuildTriggerAction.class.getName());
 
     private static final String URL_NAME = "github-webhook-build-trigger";
 
@@ -99,15 +102,20 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
         IOUtils.copy(request.getInputStream(), writer, "UTF-8");
         String requestBody = writer.toString();
         Gson gson = new GsonBuilder().registerTypeAdapter(new TypeToken<DateTime>(){}.getType(), new GithubWebhookPayload.DateTimeConverter()).create();
-        GithubWebhookPayload githubWebhookPayload = gson.fromJson(requestBody, GithubWebhookPayload.class);
-	githubWebhookPayload.setType(request.getHeader("x-github-event"));
-	githubWebhookPayload.findFlags();
-	githubWebhookPayload.findRelease();
         StringBuilder info = new StringBuilder();
-        if (githubWebhookPayload == null) {
-            return HttpResponses.error(500, this.getTextEnvelopedInBanner("   ERROR: payload json is empty at least requestBody is empty!"));
-        }
+        LOGGER.info("doReceive: x-github-event=" + request.getHeader("x-github-event") + " requestBody=" + requestBody);
         try {
+            GithubWebhookPayload githubWebhookPayload = gson.fromJson(requestBody, GithubWebhookPayload.class);
+            if (githubWebhookPayload == null) {
+                return HttpResponses.error(500, this.getTextEnvelopedInBanner("   ERROR: payload json is empty at least requestBody is empty!"));
+            }
+            githubWebhookPayload.setType(request.getHeader("x-github-event"));
+            githubWebhookPayload.findFlags();
+            githubWebhookPayload.findRelease();
+            LOGGER.info("doReceive: type=" + githubWebhookPayload.getType()
+                    + " hasJFlags=" + githubWebhookPayload.hasJFlags()
+                    + " hasJCFlags=" + githubWebhookPayload.hasJCFlags());
+
             //
             // WEBHOOK SECRET
             //

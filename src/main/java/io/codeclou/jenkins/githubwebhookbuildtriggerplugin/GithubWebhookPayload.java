@@ -18,12 +18,15 @@ import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 import java.lang.reflect.Type;
+import java.util.logging.Logger;
 /**
  * GitHub Webhook JSON Pojo with only the parts that are interesting for us.
  * See: https://developer.github.com/webhooks/#payloads
  */
 
 public class GithubWebhookPayload {
+
+    private static final Logger LOGGER = Logger.getLogger(GithubWebhookPayload.class.getName());
 
     /*
      * hook_id is only set on initial request when the webhook is created.
@@ -46,7 +49,7 @@ public class GithubWebhookPayload {
     private ArrayList<GithubWebhookPayloadJenkinsFlag> jFlags;
     private ArrayList<GithubWebhookPayloadJenkinsCommitFlags> jcFlags;
     private static final Pattern flagPattern;
-    private Matcher flagMatcher;
+    private transient Matcher flagMatcher;
 
     static {
         flagPattern = Pattern.compile("\\[jenkins:([a-zA-Z0-9_-]+)(?:=([a-zA-Z0-9/\\.,_-]+))?\\]");
@@ -61,18 +64,23 @@ public class GithubWebhookPayload {
     public void findFlags() {
 	if (commits != null) {
             DateTime timeNow = new DateTime();
+            LOGGER.info("findFlags: commits=" + commits.size() + " timeNow=" + timeNow);
             for (GithubWebhookPayloadCommit commit : commits) {
-                if (timeNow.getMillis() - commit.timestamp.getMillis() < 600*1000) {
+                long ageMillis = timeNow.getMillis() - commit.timestamp.getMillis();
+                LOGGER.info("findFlags: commit id=" + commit.getId() + " timestamp=" + commit.timestamp
+                        + " ageMillis=" + ageMillis + " message=" + commit.message);
+                if (ageMillis < 600*1000) {
                     GithubWebhookPayloadJenkinsCommitFlags jcFlag = new GithubWebhookPayloadJenkinsCommitFlags(commit.getId(), commit.getCommitter());
                     ArrayList<GithubWebhookPayloadJenkinsFlag> jcFlagArray = jcFlag.getJFlags();
                     flagMatcher = flagPattern.matcher(commit.message);
                     while(flagMatcher.find()) {
                         GithubWebhookPayloadJenkinsFlag newflag = null;
-                        if (flagMatcher.groupCount() == 2) {
+                        if (flagMatcher.group(2) != null) {
                             newflag = new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1), flagMatcher.group(2));
-                        } else if (flagMatcher.groupCount() == 1) {
+                        } else {
                             newflag = new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1));
                         }
+                        LOGGER.info("findFlags: matched flag name=" + newflag.getName() + " value=" + newflag.getValue());
                         if (!jFlags.contains(newflag)) {
                             jFlags.add(newflag);
                         }
@@ -83,8 +91,13 @@ public class GithubWebhookPayload {
                     if (!jcFlagArray.isEmpty()) {
                         jcFlags.add(jcFlag);
                     }
+                } else {
+                    LOGGER.info("findFlags: commit " + commit.getId() + " is older than 600s, skipping flag detection");
                 }
             }
+            LOGGER.info("findFlags: result jFlags=" + jFlags.size() + " jcFlags=" + jcFlags.size());
+        } else {
+            LOGGER.info("findFlags: commits is null, skipping");
         }
     }
 
@@ -98,7 +111,7 @@ public class GithubWebhookPayload {
 
 
     public void findRelease() {
-        if (ref.startsWith("release/")) {
+        if (ref != null && ref.startsWith("release/")) {
             releaseTag = true;
             releaseVer = ref.substring(8);
 	} else {
@@ -369,13 +382,17 @@ public class GithubWebhookPayload {
             return value != null && ! value.isEmpty();
         }
 
-	public boolean equals(GithubWebhookPayloadJenkinsFlag other) {
-            if (other == null) return false;
-	    return other.name.equals(this.name) && other.value.equals(this.value);
+	@Override
+	public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof GithubWebhookPayloadJenkinsFlag)) return false;
+            GithubWebhookPayloadJenkinsFlag other = (GithubWebhookPayloadJenkinsFlag) o;
+            return java.util.Objects.equals(this.name, other.name) && java.util.Objects.equals(this.value, other.value);
 	}
 
+	@Override
 	public int hashCode() {
-	    return this.name.hashCode() + this.value.hashCode();
+	    return java.util.Objects.hash(this.name, this.value);
 	}
     }
 
