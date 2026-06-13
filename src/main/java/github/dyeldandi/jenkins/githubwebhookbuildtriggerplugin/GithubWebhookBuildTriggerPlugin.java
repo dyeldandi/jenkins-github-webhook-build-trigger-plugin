@@ -2,7 +2,7 @@
  * Licensed under MIT License
  * Copyright (c) 2017 Bernhard Grünewaldt
  */
-package io.codeclou.jenkins.githubwebhookbuildtriggerplugin;
+package github.dyeldandi.jenkins.githubwebhookbuildtriggerplugin;
 
 import hudson.Plugin;
 

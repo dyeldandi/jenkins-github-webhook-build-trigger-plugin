@@ -3,7 +3,7 @@
  * Copyright (c) 2017 Bernhard Grünewaldt
  * Copyright (c) 2017 Denis Yeldandi
  */
-package io.codeclou.jenkins.githubwebhookbuildtriggerplugin;
+package github.dyeldandi.jenkins.githubwebhookbuildtriggerplugin;
 
 import hudson.EnvVars;
 import hudson.model.*;

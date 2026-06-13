@@ -2,7 +2,7 @@
  * Licensed under MIT License
  * Copyright (c) 2017 Bernhard Grünewaldt
  */
-package io.codeclou.jenkins.githubwebhookbuildtriggerplugin.webhooksecret;
+package github.dyeldandi.jenkins.githubwebhookbuildtriggerplugin.webhooksecret;
 
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;

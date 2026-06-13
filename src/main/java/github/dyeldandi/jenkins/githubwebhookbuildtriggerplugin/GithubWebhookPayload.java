@@ -3,7 +3,7 @@
  * Copyright (c) 2017 Bernhard Grünewaldt
  * Copyright (c) 2019 Denis Yeldandi
  */
-package io.codeclou.jenkins.githubwebhookbuildtriggerplugin;
+package github.dyeldandi.jenkins.githubwebhookbuildtriggerplugin;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
@@ -64,10 +64,10 @@ public class GithubWebhookPayload {
     public void findFlags() {
 	if (commits != null) {
             DateTime timeNow = new DateTime();
-            LOGGER.info("findFlags: commits=" + commits.size() + " timeNow=" + timeNow);
+            LOGGER.fine("findFlags: commits=" + commits.size() + " timeNow=" + timeNow);
             for (GithubWebhookPayloadCommit commit : commits) {
                 long ageMillis = timeNow.getMillis() - commit.timestamp.getMillis();
-                LOGGER.info("findFlags: commit id=" + commit.getId() + " timestamp=" + commit.timestamp
+                LOGGER.fine("findFlags: commit id=" + commit.getId() + " timestamp=" + commit.timestamp
                         + " ageMillis=" + ageMillis + " message=" + commit.message);
                 if (ageMillis < 600*1000) {
                     GithubWebhookPayloadJenkinsCommitFlags jcFlag = new GithubWebhookPayloadJenkinsCommitFlags(commit.getId(), commit.getCommitter());
@@ -80,7 +80,7 @@ public class GithubWebhookPayload {
                         } else {
                             newflag = new GithubWebhookPayloadJenkinsFlag(flagMatcher.group(1));
                         }
-                        LOGGER.info("findFlags: matched flag name=" + newflag.getName() + " value=" + newflag.getValue());
+                        LOGGER.fine("findFlags: matched flag name=" + newflag.getName() + " value=" + newflag.getValue());
                         if (!jFlags.contains(newflag)) {
                             jFlags.add(newflag);
                         }
@@ -92,12 +92,12 @@ public class GithubWebhookPayload {
                         jcFlags.add(jcFlag);
                     }
                 } else {
-                    LOGGER.info("findFlags: commit " + commit.getId() + " is older than 600s, skipping flag detection");
+                    LOGGER.fine("findFlags: commit " + commit.getId() + " is older than 600s, skipping flag detection");
                 }
             }
-            LOGGER.info("findFlags: result jFlags=" + jFlags.size() + " jcFlags=" + jcFlags.size());
+            LOGGER.fine("findFlags: result jFlags=" + jFlags.size() + " jcFlags=" + jcFlags.size());
         } else {
-            LOGGER.info("findFlags: commits is null, skipping");
+            LOGGER.fine("findFlags: commits is null, skipping");
         }
     }
 

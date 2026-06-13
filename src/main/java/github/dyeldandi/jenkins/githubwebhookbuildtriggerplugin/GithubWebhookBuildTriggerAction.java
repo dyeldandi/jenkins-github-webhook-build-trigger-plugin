@@ -3,15 +3,15 @@
  * Copyright (c) 2017 Bernhard Grünewaldt
  * Copyright (c) 2019 Denis Yeldandi
  */
-package io.codeclou.jenkins.githubwebhookbuildtriggerplugin;
+package github.dyeldandi.jenkins.githubwebhookbuildtriggerplugin;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import hudson.Extension;
 import hudson.model.*;
 import hudson.util.HttpResponses;
-import io.codeclou.jenkins.githubwebhookbuildtriggerplugin.config.GithubWebhookBuildTriggerPluginBuilder;
-import io.codeclou.jenkins.githubwebhookbuildtriggerplugin.webhooksecret.GitHubWebhookUtility;
+import github.dyeldandi.jenkins.githubwebhookbuildtriggerplugin.config.GithubWebhookBuildTriggerPluginBuilder;
+import github.dyeldandi.jenkins.githubwebhookbuildtriggerplugin.webhooksecret.GitHubWebhookUtility;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.IOUtils;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
@@ -103,7 +103,7 @@ public class GithubWebhookBuildTriggerAction implements UnprotectedRootAction {
         String requestBody = writer.toString();
         Gson gson = new GsonBuilder().registerTypeAdapter(new TypeToken<DateTime>(){}.getType(), new GithubWebhookPayload.DateTimeConverter()).create();
         StringBuilder info = new StringBuilder();
-        LOGGER.info("doReceive: x-github-event=" + request.getHeader("x-github-event") + " requestBody=" + requestBody);
+        LOGGER.fine("doReceive: x-github-event=" + request.getHeader("x-github-event") + " requestBody=" + requestBody);
         try {
             GithubWebhookPayload githubWebhookPayload = gson.fromJson(requestBody, GithubWebhookPayload.class);
             if (githubWebhookPayload == null) {

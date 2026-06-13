@@ -5,6 +5,13 @@
 Trigger Jenkins Jobs via GitHub Webhooks and provide Webhook Payload Information as Environment Variables inside your Job.
 This plugin is made by codeclou. We love [GitHub](https://github.com) and [Jenkins](https://jenkins.io/).
 
+> :information_source: **This is a fork** of [codeclou/jenkins-github-webhook-build-trigger-plugin](https://github.com/codeclou/jenkins-github-webhook-build-trigger-plugin)
+> maintained at [dyeldandi/jenkins-github-webhook-build-trigger-plugin](https://github.com/dyeldandi/jenkins-github-webhook-build-trigger-plugin).
+> On top of the original behaviour, this fork adds:
+>   * Opt-in triggering of `push` builds via `[jenkins:xxx]` / `[jenkins:xxx=value]` flags in commit messages (see below).
+>   * Updated dependencies / package namespace so the plugin builds and runs on modern Jenkins and Java versions.
+>   * Assorted bugfixes (see commit history for details).
+
 -----
 
 &nbsp;
@@ -12,7 +19,7 @@ This plugin is made by codeclou. We love [GitHub](https://github.com) and [Jenki
 ### Quickstart
 
 * (1) Install the Pipeline plugins via the [Pipeline Bundle](https://plugins.jenkins.io/workflow-aggregator).
-* (2) Download: [`github-webhook-notifier-plugin-1.2.0.hpi.zip`](https://github.com/codeclou/jenkins-github-webhook-build-trigger-plugin/releases/download/1.2.0/github-webhook-notifier-plugin-1.2.0.hpi.zip) and install the plugin.
+* (2) Download: [`github-webhook-notifier-plugin-1.3.1.hpi.zip`](https://github.com/dyeldandi/jenkins-github-webhook-build-trigger-plugin/releases/download/1.3.1/github-webhook-notifier-plugin-1.3.1.hpi.zip) and install the plugin.
 * (3) In Jenkins global configuration define a "Webhook Secret" (see below)
 * (4) Create a job called `{gitHubRepoOwner}---{repoName}` like e.g. `codeclou---myapp`
 * (5) Configure a GitHub Webhook for push event. (see below)
@@ -33,7 +40,7 @@ If you can agree with all statements, then this is for you.
  * I only use GitHub.com for my repositories.
  * I only 'git clone' via `https://` URLs.
  * I work with git branches and tags.
- * I want my Jenkins jobs triggered at every push (branch or tag).
+ * I want my Jenkins jobs triggered on push, but only when I explicitly opt-in via a `[jenkins:xxx]` flag in the commit message (or for tag pushes).
  * I want my Jenkins jobs triggered exclusively via GitHub Webhook Push Events.
  * I use Linux to run Jenkins.
  * I want my Jenkins jobs triggered automatically by convention over configuration job naming.
@@ -47,7 +54,7 @@ Ok. Still here?! Then this might be for you :bowtie:
 ### How it works in three sentences and one picture
 
   * Plugin REST Endpoint parses the actual GitHub Webhook JSON Payload and extracts its information.
-  * It then triggers all Jenkins jobs matching `{repositoryOwner}---{repositoryName}.*`
+  * For `push` events it triggers all Jenkins jobs matching `{repositoryOwner}---{repositoryName}.*`, but only if at least one commit pushed within the last 10 minutes contains a `[jenkins:xxx]` flag in its commit message (tag/`create` events always trigger, see [Triggering Jobs via Commit Message Flags](#triggering-jobs-via-commit-message-flags)).
   * Lastly it injects Environment Variables into the job run for you to determine what branch and revision is to clone.
 
 ![](https://codeclou.github.io/jenkins-github-webhook-build-trigger-plugin/img/webhook-payload---with-overlays.png?v2)
@@ -123,8 +130,36 @@ magically by convention over configuration.
 | `$GWBT_REPO_FULL_NAME` | GitHub repository full name | `{repoOwner}/{repoName}` <br> e.g. `codeclou/jenkins-github-webhook-build-trigger-plugin` |
 | `$GWBT_REPO_NAME` | GitHub repository full name |  `{repoName}` <br> e.g. `jenkins-github-webhook-build-trigger-plugin` |
 | `$GWBT_TYPE` | GitHub hook type |  `push` e.g. `push`, `create`, etc |
-| `$GWBT_FLAGS` | GitHub json flags |  `foobar` |
+| `$GWBT_FLAGS` | Space separated `[jenkins:xxx]` flags found in the triggering commit message | `nma2` or `deploy=staging` |
+| `$GWBT_COMMIT` | sha1 of the commit that carried the `[jenkins:xxx]` flag (only set for flag-triggered push builds) | `2c9522c9618864808eaaede8353dbeafb996c605` |
+| `$GWBT_COMMIT_COMMITTER` | Email of the committer of the flagged commit (only set for flag-triggered push builds) | `jane@example.com` |
 
+
+&nbsp;
+
+-----
+
+&nbsp;
+
+### Triggering Jobs via Commit Message Flags
+
+For `push` events, jobs are **only** triggered if at least one commit contains a flag of the form
+`[jenkins:flagname]` or `[jenkins:flagname=value]` in its commit message, **and** that commit was
+pushed within the last 10 minutes (older commits, e.g. from a redelivered webhook, are ignored for
+flag detection).
+
+Examples of commit messages that trigger a build:
+
+```
+Fix login bug [jenkins:nma2]
+Deploy to staging [jenkins:deploy=staging]
+```
+
+Each matching flag becomes available in `$GWBT_FLAGS` (space separated, `name` or `name=value`),
+and the job also receives `$GWBT_COMMIT` and `$GWBT_COMMIT_COMMITTER` for the flagged commit.
+
+Tag pushes (`create` events with `ref_type=tag`) are not affected by this and always trigger
+matching jobs as described above.
 
 &nbsp;
 
@@ -321,11 +356,9 @@ This is how it looks, when a Job gets triggered by a GitHub Webhook push.
 Have Jave Oracle Java 8 and Apache Maven 3 installed. And then build like this:
 
 ```bash
-git clone https://github.com/codeclou/jenkins-github-webhook-build-trigger-plugin.git
+git clone https://github.com/dyeldandi/jenkins-github-webhook-build-trigger-plugin.git
 cd jenkins-github-webhook-build-trigger-plugin
-mvn clean
-mvn compile
-mvn hpi:hpi
+mvn -P '!pentaho' -DskipTests clean package
 ```
 
 Now you should have a file called `./target/github-webhook-notifier-plugin.hpi` which
